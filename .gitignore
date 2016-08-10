@@ -1,4 +1,4 @@
 node_modules
 elm-stuff
-build
+dist
 .DS_Store

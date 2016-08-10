@@ -1,43 +1,50 @@
 'use strict';
 
-var gulp = require('gulp'),
-  http = require('http'),
-  st = require('st'),
-  exec = require('child_process').exec,
-  gutil = require('gulp-util'),
-  clear = require('clear'),
-  counter = 0;
+var gulp = require('gulp')
+var elm = require('gulp-elm')
+var gutil = require('gulp-util')
+var plumber = require('gulp-plumber')
+var connect = require('gulp-connect')
 
-var cmd = 'elm make ./Main.elm --output ./bundle.js';
-clear();
-gulp.task('default', ['server', 'watch', 'elm']);
+// File Paths
+var paths = {
+  dest: 'dist',
+  elm: 'src/*.elm',
+  static: 'src/*.{html,css}'
+}
 
-gulp.task('watch', function(cb) {
-  gulp.watch('**/*.elm', ['elm']);
-});
+// Init Elm
+gulp.task('elm-init', elm.init)
 
-gulp.task('server', function(done) {
-  gutil.log(gutil.colors.blue('Starting server at http://localhost:4000'));
-  http.createServer(
-    st({
-      path: __dirname,
-      index: 'index.html',
-      cache: false
-    })
-  ).listen(4000, done);
-});
+// Compile Elm to Html
+gulp.task('elm', ['elm-init'], function () {
+  return gulp.src(paths.elm)
+    .pipe(plumber())
+    .pipe(elm())
+    .pipe(gulp.dest(paths.dest))
+})
 
-gulp.task('elm', function(cb) {
-  if (counter > 0){
-    clear();
-  }
-  exec(cmd, function(err, stdout, stderr) {
-    if (err){
-      gutil.log(gutil.colors.red('elm make: '),gutil.colors.red(stderr));
-    } else {
-      gutil.log(gutil.colors.green('elm make: '), gutil.colors.green(stdout));
-    }
-    cb();
-  });
-  counter++;
-});
+// Move static assets to dist
+gulp.task('static', function () {
+  return gulp.src(paths.static)
+    .pipe(plumber())
+    .pipe(gulp.dest(paths.dest))
+})
+
+// Watch for changes and compile
+gulp.task('watch', function () {
+  gulp.watch(paths.elm, ['elm'])
+  gulp.watch(paths.static, ['static'])
+})
+
+// Local Server
+gulp.task('connect', function () {
+  connect.server({
+    root: 'dist',
+    port: 3000
+  })
+})
+
+// Main gulp tasks
+gulp.task('build', ['elm', 'static'])
+gulp.task('default', ['connect', 'build', 'watch'])
