@@ -9,6 +9,7 @@ import Task exposing (Task)
 import Json.Decode as Decode exposing (..)
 import Json.Encode as Encode exposing (..)
 import String
+import Http.Decorators
 
 
 -- import String
@@ -21,12 +22,13 @@ type alias Model =
     , token : String
     , quote : String
     , errorMsg : String
+    , protectedQuote : String
     }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( Model "" "" "" "" "", fetchRandomQuoteCmd )
+    ( Model "" "" "" "" "" "", fetchRandomQuoteCmd )
 
 
 
@@ -35,7 +37,9 @@ init =
 
 type Msg
     = GetQuote
+    | GetProtectedQuote
     | FetchQuoteSucess String
+    | FetchProtectedQuoteSuccess String
     | HttpError Http.Error
     | AuthError Http.Error
     | GetTokenSuccess String
@@ -52,8 +56,14 @@ update msg model =
         GetQuote ->
             ( model, fetchRandomQuoteCmd )
 
+        GetProtectedQuote ->
+            ( model, fetchRandomProtectedQuoteCmd model )
+
         FetchQuoteSucess newQuote ->
             ( { model | quote = newQuote }, Cmd.none )
+
+        FetchProtectedQuoteSuccess newQuote ->
+            ( { model | protectedQuote = newQuote }, Cmd.none )
 
         HttpError _ ->
             ( model, Cmd.none )
@@ -79,7 +89,13 @@ update msg model =
             ( model, authUserCmd model loginUrl )
 
         LogOut ->
-            ( { model | username = "", password = "", token = "", errorMsg = "" }
+            ( { model
+                | username = ""
+                , password = ""
+                , protectedQuote = ""
+                , token = ""
+                , errorMsg = ""
+              }
             , Cmd.none
             )
 
@@ -92,6 +108,11 @@ update msg model =
 api : String
 api =
     "http://localhost:3001/"
+
+
+protectedQuoteUrl : String
+protectedQuoteUrl =
+    api ++ "api/protected/random-quote"
 
 
 registerUrl : String
@@ -143,9 +164,36 @@ fetchRandomQuote =
     Http.getString randomQuoteUrl
 
 
+fetchRandomProtectedQuote : Model -> Task Http.Error String
+fetchRandomProtectedQuote model =
+    { verb = "GET"
+    , headers = [ ( "Authorization", "Bearer " ++ model.token ) ]
+    , url = protectedQuoteUrl
+    , body = Http.empty
+    }
+        |> Http.send Http.defaultSettings
+        |> Http.Decorators.interpretStatus
+        |> Task.map responseText
+
+
+fetchRandomProtectedQuoteCmd : Model -> Cmd Msg
+fetchRandomProtectedQuoteCmd model =
+    Task.perform HttpError FetchProtectedQuoteSuccess <| fetchRandomProtectedQuote model
+
+
 fetchRandomQuoteCmd : Cmd Msg
 fetchRandomQuoteCmd =
     Task.perform HttpError FetchQuoteSucess fetchRandomQuote
+
+
+responseText : Http.Response -> String
+responseText response =
+    case response.value of
+        Http.Text t ->
+            t
+
+        _ ->
+            ""
 
 
 
@@ -154,27 +202,32 @@ fetchRandomQuoteCmd =
 
 view : Model -> Html Msg
 view model =
-    div [ class "container" ]
-        [ h2 [ class "text-center" ] [ text "Chucky Says" ]
-        , p [ class "text-center" ]
-            [ button [ class "btn btn-success", onClick GetQuote ]
-                [ text "Get some Wisdom!" ]
-            ]
-        , blockquote []
-            [ p [ class "text-center" ] [ text model.quote ]
-            ]
-        , div [ class "jumbotron text-left" ]
-            [ authBoxView model ]
-        ]
-
-
-authBoxView : Model -> Html Msg
-authBoxView model =
     let
         loggedIn : Bool
         loggedIn =
             (String.length model.token) > 0
+    in
+        div [ class "container" ]
+            [ h2 [ class "text-center" ] [ text "Chucky Says" ]
+            , p [ class "text-center" ]
+                [ button [ class "btn btn-success", onClick GetQuote ]
+                    [ text "Get some Wisdom!" ]
+                ]
+            , blockquote []
+                [ p [ class "text-center" ] [ text model.quote ]
+                ]
+            , div [ class "jumbotron text-left" ]
+                [ authBoxView model loggedIn ]
+            , div []
+                [ h2 [ class "text-center" ] [ text "Protected Wisdom" ]
+                , protectedQuoteView model loggedIn
+                ]
+            ]
 
+
+authBoxView : Model -> Bool -> Html Msg
+authBoxView model loggedIn =
+    let
         greeting : String
         greeting =
             "Hello, " ++ model.username ++ "!"
@@ -216,6 +269,29 @@ authBoxView model =
                     , button [ class "btn btn-link", onClick ClickRegisterUser ] [ text "Register" ]
                     ]
                 ]
+
+
+protectedQuoteView : Model -> Bool -> Html Msg
+protectedQuoteView model loggedIn =
+    let
+        hideIfNoProtectedQuote : String
+        hideIfNoProtectedQuote =
+            if String.isEmpty model.protectedQuote then
+                "hidden"
+            else
+                ""
+    in
+        if loggedIn then
+            div []
+                [ p [ class "text-center" ]
+                    [ button [ class "btn btn-info", onClick GetProtectedQuote ]
+                        [ text "Get a Protected Quote!" ]
+                    ]
+                , blockquote [ class hideIfNoProtectedQuote ]
+                    [ p [] [ text model.protectedQuote ] ]
+                ]
+        else
+            p [ class "text-center" ] [ text "Please log in or register to see protected quote." ]
 
 
 main : Program Never
