@@ -42,6 +42,8 @@ type Msg
     | ClickRegisterUser
     | SetUsername String
     | SetPassword String
+    | ClickLogIn
+    | LogOut
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -73,6 +75,14 @@ update msg model =
             , Cmd.none
             )
 
+        ClickLogIn ->
+            ( model, authUserCmd model loginUrl )
+
+        LogOut ->
+            ( { model | username = "", password = "", token = "", errorMsg = "" }
+            , Cmd.none
+            )
+
 
 
 -- _ ->
@@ -87,6 +97,11 @@ api =
 registerUrl : String
 registerUrl =
     api ++ "users"
+
+
+loginUrl : String
+loginUrl =
+    api ++ "sessions/create"
 
 
 randomQuoteUrl : String
@@ -146,7 +161,7 @@ view model =
                 [ text "Get some Wisdom!" ]
             ]
         , blockquote []
-            [ p [] [ text model.quote ]
+            [ p [ class "text-center" ] [ text model.quote ]
             ]
         , div [ class "jumbotron text-left" ]
             [ authBoxView model ]
@@ -175,6 +190,7 @@ authBoxView model =
             div [ id "greeting" ]
                 [ h3 [ class "text-center" ] [ text greeting ]
                 , p [ class "text-center" ] [ text "You have are granted access to infinite wisdom." ]
+                , p [ class "text-center" ] [ button [ class "btn btn-danger", onClick LogOut ] [ text "Log Out" ] ]
                 ]
         else
             div [ id "form" ]
@@ -196,7 +212,9 @@ authBoxView model =
                         ]
                     ]
                 , div [ class "text-center" ]
-                    [ button [ class "btn btn-link", onClick ClickRegisterUser ] [ text "Register" ] ]
+                    [ button [ class "btn btn-primary", onClick ClickLogIn ] [ text "Log In" ]
+                    , button [ class "btn btn-link", onClick ClickRegisterUser ] [ text "Register" ]
+                    ]
                 ]
 
 
