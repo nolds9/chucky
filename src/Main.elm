@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Html exposing (..)
 import Html.App as App
@@ -12,7 +12,6 @@ import String
 import Http.Decorators
 
 
--- import String
 -- Model
 
 
@@ -26,9 +25,14 @@ type alias Model =
     }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( Model "" "" "" "" "" "", fetchRandomQuoteCmd )
+init : Maybe Model -> ( Model, Cmd Msg )
+init model =
+    case model of
+        Just model ->
+            ( model, fetchRandomQuoteCmd )
+
+        Nothing ->
+            ( Model "" "" "" "" "" "", fetchRandomQuoteCmd )
 
 
 
@@ -50,6 +54,12 @@ type Msg
     | LogOut
 
 
+port setStorage : Model -> Cmd msg
+
+
+port removeStorage : Model -> Cmd msg
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -62,8 +72,8 @@ update msg model =
         FetchQuoteSucess newQuote ->
             ( { model | quote = newQuote }, Cmd.none )
 
-        FetchProtectedQuoteSuccess newQuote ->
-            ( { model | protectedQuote = newQuote }, Cmd.none )
+        FetchProtectedQuoteSuccess newPQuote ->
+            setStorageHelper { model | protectedQuote = newPQuote }
 
         HttpError _ ->
             ( model, Cmd.none )
@@ -81,28 +91,13 @@ update msg model =
             ( model, authUserCmd model registerUrl )
 
         GetTokenSuccess newToken ->
-            ( { model | token = newToken, errorMsg = "" } |> Debug.log "got new token"
-            , Cmd.none
-            )
+            setStorageHelper { model | token = newToken, password = "", errorMsg = "" }
 
         ClickLogIn ->
             ( model, authUserCmd model loginUrl )
 
         LogOut ->
-            ( { model
-                | username = ""
-                , password = ""
-                , protectedQuote = ""
-                , token = ""
-                , errorMsg = ""
-              }
-            , Cmd.none
-            )
-
-
-
--- _ ->
---     ( model, Cmd.none )
+            ( { model | username = "", password = "", protectedQuote = "", token = "", errorMsg = "" }, removeStorage model )
 
 
 api : String
@@ -194,6 +189,11 @@ responseText response =
 
         _ ->
             ""
+
+
+setStorageHelper : Model -> ( Model, Cmd Msg )
+setStorageHelper model =
+    ( model, setStorage model )
 
 
 
@@ -294,11 +294,11 @@ protectedQuoteView model loggedIn =
             p [ class "text-center" ] [ text "Please log in or register to see protected quote." ]
 
 
-main : Program Never
+main : Program (Maybe Model)
 main =
-    App.program
+    App.programWithFlags
         { init = init
-        , subscriptions = \_ -> Sub.none
         , update = update
+        , subscriptions = \_ -> Sub.none
         , view = view
         }
